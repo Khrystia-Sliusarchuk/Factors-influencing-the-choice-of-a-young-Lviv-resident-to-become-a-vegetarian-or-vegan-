@@ -1,0 +1,277 @@
+---
+title: "Factors influencing the choice of a young Lviv  resident to become a vegetarian or vegan"
+output: html_notebook
+---
+```{r}
+#install.packages("readxl")
+#install.packages("data.table")
+#install.packages("stringr")
+#install.packages("ggplot2")
+#install.packages("DescTools")
+#install.packages("caret")
+#install.packages("car")
+```
+
+```{r}
+library(readxl)
+library(data.table)
+library(stringr)
+library(ggplot2)
+library(DescTools)
+library(caret)
+library(car)
+```
+
+# Data reading and processing
+```{r}
+#Reading data from file
+data <- read_excel("data.xlsx", 1)
+
+#Renaming the columns, so that it is easier to access them.
+setnames(data, new = c('veg_','sex_', 'age', 'city_', 'educ', 'educ_spec_', 'foreign_lang', 'religious_', 'mar_status_', 'rent_', 'veg_surround_', 'veg_possib_', 'veg_past_', 'pet_', 'empathy_', 'overweight_', 'lgbt_', 'vaccine_', 'trash_', 'wage_'))
+
+# Converting the values from "Так"/"Ні" to "1"/"0" for veg_ column 
+data$veg_ <- ifelse(data$veg_ == "Так", 1, 0)
+
+# Converting the values from Ukrainian to English for categorical variables in columns
+data$sex_ <- ifelse(data$sex_ == "Чоловік", "male", "female")
+
+# Calculating how many years of education individual passed
+for (i in 1:nrow(data)){
+  educ <- data$educ[i]
+  years <- 0
+  if (grepl("Початкова загальна освіта: 1 - 4 клас", educ, fixed = TRUE)){
+    years <- years + 4
+  }
+  if (grepl("Перший етап середньої овіти: 5 - 9 клас", educ, fixed = TRUE)){
+    years <- years + 5
+  }
+  if (grepl("Другий етап середньої освіти: 10 - 11 клас", educ, fixed = TRUE)){
+    years <- years + 2
+  }
+  if (grepl("Середня спеціальна освіта: технікум, тощо", educ, fixed = TRUE)){
+    years <- years + 2
+  }
+  if (grepl("Базова вища освіта: ступінь вищої освіти «Бакалавр»", educ, fixed = TRUE)){
+    years <- years + 4
+  }
+  if (grepl("Магістратура: ступінь вищої освіти «Магістр»", educ, fixed = TRUE)){
+    years <- years + 2
+  }
+  data$educ[i] <- years
+}
+
+# Converting the values from Ukrainian to English for categorical variables in columns
+data$educ_spec_[data$educ_spec_ == "Технічна"] <- "tech"
+data$educ_spec_[data$educ_spec_ == "Гуманітрна"] <- "human"
+data$educ_spec_[data$educ_spec_ == "Медицина"] <- "medic"
+
+# Calculating how many foreign languages individual knows
+for (i in 1:nrow(data)){
+  data$foreign_lang[i] <- str_count(data$foreign_lang[i], ',') + 1
+}
+
+# Converting the values from Ukrainian to English for categorical variables in columns
+for (col_name in c("religious_", "rent_", "veg_surround_", "veg_possib_", "veg_past_", "pet_", "empathy_", "overweight_", "trash_")){
+  data[[col_name]] <- ifelse(data[[col_name]] == "Так", "yes", "no")
+}
+
+# Converting the values from Ukrainian to English for categorical variables in columns
+data$mar_status_[data$mar_status_ == "Одружений / заміжня"] <- "married"
+data$mar_status_[data$mar_status_ == "Неодружений / незаміжня"] <- "not married"
+data$mar_status_[data$mar_status_ == "Розлучений / розлучена"] <- "divorsed"
+data$mar_status_[data$mar_status_ == "Вдівець / вдова"] <- "widowed"
+
+data$lgbt_[data$lgbt_ == "Негативно"] <- "neg"
+data$lgbt_[data$lgbt_ == "Нейтрально"] <- "neut"
+data$lgbt_[data$lgbt_ == "Позитивно"] <- "pos"
+
+data$vaccine_[data$vaccine_ == "Негативно"] <- "neg"
+data$vaccine_[data$vaccine_ == "Нейтрально"] <- "neut"
+data$vaccine_[data$vaccine_ == "Позитивно"] <- "pos"
+
+data$wage_[data$wage_ == "Я не заробляю нічого."] <- "nothing"
+data$wage_[data$wage_ == "0 - 10 тисяч гривень."] <- "0-10 thousands"
+data$wage_[data$wage_ == "10 - 20 тисяч гривень."] <- "10-20 thousands"
+data$wage_[data$wage_ == "20 - 30 тисяч гривень."] <- "20-30 thousands"
+data$wage_[data$wage_ == "30 - 40 тисяч гривень."] <- "30-40 thousands"
+data$wage_[data$wage_ == "40 - 50 тисяч гривень."] <- "40-50 thousands"
+data$wage_[data$wage_ == "50 і більше тисяч гривень."] <- "50 + thousands"
+
+# Making values in age and foreign_lang columns to be numeric ones
+data$age <- as.numeric(data$age)
+data$educ <- as.numeric(data$educ)
+data$foreign_lang <- as.numeric(data$foreign_lang)
+```
+
+```{r}
+data
+```
+
+# Data visualization
+```{r}
+#Visualizing the age-sex distribution in the sample
+number <- as.list(rep(1, nrow(data)))
+sex <- data$sex_
+ggplot(data, aes(fill=sex, y=number, x=age)) + 
+  geom_bar(position="stack", stat="identity") +
+  xlab("age") + ylab("number") + 
+  scale_fill_brewer(palette="Pastel1") +
+  ggtitle("Age-sex distribution")
+```
+
+```{r}
+#Visualizing the place of residence distribution in the sample
+city <- data$city_
+ggplot(data, aes(fill=city, y=number, x="")) + 
+  geom_bar(stat="identity", width=1) + 
+  coord_polar("y", start=0) + 
+  theme_void() + 
+  scale_fill_brewer(palette="Pastel1") + 
+  ggtitle("Place of residence distribution") 
+```
+
+```{r}
+#Visualizing the vegeterians/vegans distribution in the sample
+vegetarian <- ifelse(data$veg_ == "1", "Yes", "No")
+ggplot(data, aes(fill=vegetarian, y=number, x="")) + 
+  geom_bar(stat="identity", width=1) + 
+  coord_polar("y", start=0) + 
+  theme_void() + 
+  scale_fill_brewer(palette="Pastel2") + 
+  ggtitle("Vegeterians/vegans distribution")
+```
+
+```{r}
+#Visualizing the marital status distribution in the sample
+married <- data$mar_status_
+ggplot(data, aes(fill=married, y=number, x="")) + 
+  geom_bar(stat="identity", width=1) + 
+  coord_polar("y", start=0) + 
+  theme_void() + 
+  scale_fill_brewer(palette="Pastel2") + 
+  ggtitle("Marital status distribution")
+```
+
+```{r}
+#Visualizing the wage distribution in the sample
+wage <- data$wage_
+ggplot(data, aes(fill=wage, y=number, x="")) + 
+  geom_bar(stat="identity", width=1) + 
+  coord_polar("y", start=0) + 
+  theme_void() + 
+  scale_fill_brewer(palette="Pastel2") + 
+  ggtitle("Wage distribution")
+```
+
+# Model building
+```{r}
+# Including into the model almost all of the factors
+model <- glm(veg_ ~ sex_ + age + educ + educ_spec_ + foreign_lang + religious_ + veg_surround_ + veg_past_ + pet_ + empathy_ + overweight_ + vaccine_ + trash_, 
+            data = data, 
+            family = binomial("logit"))
+summary(model)
+```
+
+```{r}
+# Test for multicollinearity
+car::vif(model)
+```
+
+```{r}
+# Including into the model almost all of the factors except for education
+model_without_multi <- glm(veg_ ~ sex_ + age + educ_spec_ + foreign_lang + religious_ + veg_surround_ + veg_past_ + pet_ + empathy_ + overweight_ + vaccine_ + trash_, 
+            data = data, 
+            family = binomial("logit"))
+summary(model_without_multi)
+```
+
+```{r}
+# Test for multicollinearity
+car::vif(model_without_multi)
+```
+
+```{r}
+# Running step function
+step(model_without_multi)
+```
+
+```{r}
+# Building the model based on the results of step() function
+model_step <- glm(veg_ ~ sex_ + educ_spec_ + religious_ + veg_surround_ + empathy_ + trash_, 
+                  data = data,
+                  family = binomial("logit"))
+summary(model_step)
+```
+
+# Coefficients and confidence intervals interpretation
+```{r}
+# Exponentiating  all the estimated coefficients and, as a result, obtaining a new interpretation
+exp(coef(model_step))
+```
+
+```{r}
+# Calculating the confidence intervals for odds ratio
+confint(model_step, level = 0.95)
+# Exponentiating the values obtained
+exp(confint(model_step, level = 0.95))
+```
+
+# Pseudo R2
+```{r}
+PseudoR2(model_step, which = 'McFadden')
+```
+
+# Percent correctly predicted
+```{r}
+# Dividing data to train and test ones
+n <- nrow(data)
+n_train <- round(0.8 * n)
+
+set.seed(123)
+train_indices <- sample(1:n, n_train)
+
+data.train <- data[train_indices, ]
+data.test <- data[-train_indices, ]
+
+# Running the model on the train data
+model_train <- glm(formula = veg_ ~ sex_ + educ_spec_ + religious_ + veg_surround_ + empathy_ + trash_  , family = binomial("logit"), data = data.train)
+
+# Predicting probabilities using test data
+predicted_prob <- predict(model_train, newdata = data.test, type = 'response')
+
+# Choosing whether y will be equal to 1 or to 0 by taking the threshold equal to 0.5
+t = 0.5
+predicted_veg_0.5 <- ifelse(predicted_prob > t, '1', '0')
+
+# Calculating the fraction of the vegetarians or vegans in the sample
+n_veg <- length(data$veg_[data$veg_ =='1'])
+frac_veg <- n_veg / (n)
+
+# Choosing whether y will be equal to 1 or to 0 by taking the threshold equal to
+# the fraction of the vegetarians or vegans in the sample
+predicted_veg_frac_veg <- ifelse(predicted_prob > frac_veg, '1', '0')
+```
+
+```{r}
+# Plotting 
+plot(data.test$veg_ ~ predicted_prob,
+     pch = 16,
+     col="salmon1",
+     xlab="Predicted",
+     ylab="Actual")
+```
+
+```{r}
+# Confusion matrices 
+confusionMatrix(data = as.factor(predicted_veg_0.5), reference = as.factor(data.test$veg_))
+confusionMatrix(data = as.factor(predicted_veg_frac_veg), reference= as.factor(data.test$veg_))
+```
+
+# Model with an interaction term of independent variables
+```{r}
+model_inter <- glm(veg_ ~ sex_ + educ_spec_ + religious_ + veg_surround_ + empathy_ + empathy_*sex_ + trash_, 
+                  data = data,
+                  family = binomial("logit"))
+summary(model_inter)
+```
